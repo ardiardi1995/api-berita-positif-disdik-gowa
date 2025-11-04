@@ -178,7 +178,7 @@ export async function scrapeGowaPositiveNews() {
   // De-dup and sort by newest first, then take latest TARGET_ITEMS
   // Resolve original source URLs for google news links and enrich 3 items without image_url
   const unique = Array.from(new Map(collected.map(it => [it.url, it])).values());
-  for (let i = 0, enriched = 0; i < unique.length && enriched < 3; i++) {
+  for (let i = 0, enriched = 0; i < unique.length && enriched < 10; i++) {
     const it = unique[i];
     if (it.url && /news\.google\.com\/rss\/articles\//.test(it.url)) {
       it.url = await resolveOriginalUrl(it.url, 1500);
