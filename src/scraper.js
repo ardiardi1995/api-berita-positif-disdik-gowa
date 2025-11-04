@@ -55,17 +55,20 @@ function tryExtractArticle() { return {}; }
 
 export async function scrapeGowaPositiveNews() {
   const q = encodeURIComponent('\"Dinas Pendidikan Kabupaten Gowa\" OR \"Disdik Gowa\"');
+  const q2 = encodeURIComponent('Pendidikan Gowa');
   const sources = [
-    `https://news.google.com/rss/search?q=${q}&hl=id&gl=ID&ceid=ID:id`
+    `https://news.google.com/rss/search?q=${q}&hl=id&gl=ID&ceid=ID:id`,
+    `https://news.google.com/rss/search?q=${q2}&hl=id&gl=ID&ceid=ID:id`
   ];
-  const MAX_ITEMS = 5; // tighter limit to fit serverless timeout on Hobby
+  const TARGET_ITEMS = 10; // aim to return at least 10 latest items
+  const MAX_ITEMS = 30; // collect up to 30 before slicing to latest 10
   const collected = [];
   for (const url of sources) {
     try {
       const res = await fetchWithTimeout(url, { headers: { 'User-Agent': 'Mozilla/5.0 RovoDevBot' }, timeout: 5000 });
       const xml = await res.text();
       const parsed = parseRss(xml);
-      for (const it of parsed) {
+      for (const it of parsed || []) {
         const link = it.link?.href || it.link || (it.source && it.source.url) || null;
         const pub = it.pubDate || it.published || it.updated;
         const title = it.title?.["#text"] || it.title || '';
@@ -84,20 +87,22 @@ export async function scrapeGowaPositiveNews() {
     }
   }
 
-  // Build items directly from RSS to keep within serverless time budget
-  const items = collected.map(candidate => ({
-    url: candidate.url,
-    title: candidate.title,
-    summary: candidate.description,
-    source: candidate.source,
-    published_at: candidate.published_at,
-    image_url: null
-  }));
+  // De-dup and sort by newest first, then take latest TARGET_ITEMS
+  const items = Array.from(new Map(collected.map(it => [it.url, it])).values())
+    .sort((a, b) => {
+      const ta = a.published_at ? new Date(a.published_at).getTime() : 0;
+      const tb = b.published_at ? new Date(b.published_at).getTime() : 0;
+      return tb - ta;
+    })
+    .slice(0, TARGET_ITEMS)
+    .map(candidate => ({
+      url: candidate.url,
+      title: candidate.title,
+      summary: candidate.description,
+      source: candidate.source,
+      published_at: candidate.published_at,
+      image_url: null
+    }));
 
-  // de-duplicate by url
-  const map = new Map();
-  for (const it of items) {
-    if (!map.has(it.url)) map.set(it.url, it);
-  }
-  return Array.from(map.values());
+  return items;
 }
