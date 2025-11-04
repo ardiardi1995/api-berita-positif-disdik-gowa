@@ -1,0 +1,33 @@
+name: Scrape Google News HTML (publisher URLs)
+
+on:
+  schedule:
+    - cron: "0 1 * * *"
+  workflow_dispatch:
+    inputs:
+      query:
+        description: "Query for Google News"
+        required: false
+        default: '"Dinas Pendidikan Kabupaten Gowa" OR "Disdik Gowa"'
+      limit:
+        description: "Max cards to process"
+        required: false
+        default: '20'
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install deps
+        run: npm ci || npm i
+      - name: Run scraper
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          node tools/scrape_google_html.js --query "${{ github.event.inputs.query || '"Dinas Pendidikan Kabupaten Gowa" OR "Disdik Gowa"' }}" --limit "${{ github.event.inputs.limit || '20' }}"

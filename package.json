@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "scrape:html": "node tools/scrape_google_html.js --query='\"Dinas Pendidikan Kabupaten Gowa\" OR \"Disdik Gowa\"' --limit=20",
     "dev": "vercel dev",
     "start": "vercel dev",
     "test": "node -e \"console.log('No tests yet')\""
