@@ -1,0 +1,19 @@
+# Node
+node_modules/
+
+# Env
+.env
+.env.local
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Vercel local cache
+.vercel/
+
+# OS
+.DS_Store
+Thumbs.db
