@@ -1,5 +1,4 @@
 import { XMLParser } from 'fast-xml-parser';
-import { load as cheerioLoad } from 'cheerio';
 
 const positiveKeywords = [
   'sukses', 'penghargaan', 'prestasi', 'apresiasi', 'inovasi', 'juara', 'terbaik',
@@ -51,21 +50,8 @@ function fetchWithTimeout(resource, options = {}) {
     .finally(() => clearTimeout(id));
 }
 
-async function tryExtractArticle(url, timeoutMs = 1500) {
-  try {
-    const res = await fetchWithTimeout(url, { headers: { 'User-Agent': 'Mozilla/5.0 RovoDevBot' }, timeout: timeoutMs });
-    const html = await res.text();
-    const $ = cheerioLoad(html);
-    const ogTitle = $('meta[property="og:title"]').attr('content');
-    const ogDesc = $('meta[property="og:description"]').attr('content');
-    const ogImage = $('meta[property="og:image"]').attr('content');
-    const title = ogTitle || $('title').first().text();
-    const summary = ogDesc || $('p').slice(0, 4).text().trim().replace(/\s+/g, ' ').slice(0, 400);
-    return { title, summary, image: ogImage };
-  } catch (e) {
-    return {};
-  }
-}
+/* removed: tryExtractArticle (cheerio-based) */
+function tryExtractArticle() { return {}; }
 
 export async function scrapeGowaPositiveNews() {
   const q = encodeURIComponent('\"Dinas Pendidikan Kabupaten Gowa\" OR \"Disdik Gowa\"');
