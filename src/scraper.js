@@ -140,10 +140,13 @@ function fetchWithTimeout(resource, options = {}) {
 /* removed: tryExtractArticle (cheerio-based) */
 function tryExtractArticle() { return {}; }
 
-export async function scrapeGowaPositiveNews() {
-  const q = encodeURIComponent('\"Dinas Pendidikan Kabupaten Gowa\" OR \"Disdik Gowa\"');
+export async function scrapeGowaPositiveNews(opts = {}) {
+  const qRaw = typeof opts === 'string' ? opts : opts.q;
+  const q = qRaw ? encodeURIComponent(qRaw) : encodeURIComponent('\"Dinas Pendidikan Kabupaten Gowa\" OR \"Disdik Gowa\"');
   const q2 = encodeURIComponent('Pendidikan Gowa');
-  const sources = [
+  const sources = qRaw ? [
+    `https://news.google.com/rss/search?q=${q}&hl=id&gl=ID&ceid=ID:id`
+  ] : [
     `https://news.google.com/rss/search?q=${q}&hl=id&gl=ID&ceid=ID:id`,
     `https://news.google.com/rss/search?q=${q2}&hl=id&gl=ID&ceid=ID:id`
   ];

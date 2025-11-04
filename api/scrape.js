@@ -8,7 +8,8 @@ export default async function handler(req, res) {
       return;
     }
     await ensureSchema();
-    const items = await scrapeGowaPositiveNews();
+    const q = req.query?.q || undefined;
+    const items = await scrapeGowaPositiveNews(q ? { q } : {});
     if (req.query && (req.query.dryrun === '1' || req.query.preview === '1')) {
       res.status(200).json({ ok: true, scraped: items.length, preview: items.slice(0, 10) });
       return;
