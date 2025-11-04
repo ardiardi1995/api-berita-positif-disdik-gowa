@@ -70,8 +70,7 @@ async function tryExtractArticle(url, timeoutMs = 1500) {
 export async function scrapeGowaPositiveNews() {
   const q = encodeURIComponent('\"Dinas Pendidikan Kabupaten Gowa\" OR \"Disdik Gowa\"');
   const sources = [
-    `https://news.google.com/rss/search?q=${q}&hl=id&gl=ID&ceid=ID:id`,
-    `https://news.google.com/rss/search?q=${encodeURIComponent('Pendidikan Gowa')}&hl=id&gl=ID&ceid=ID:id`
+    `https://news.google.com/rss/search?q=${q}&hl=id&gl=ID&ceid=ID:id`
   ];
   const MAX_ITEMS = 5; // tighter limit to fit serverless timeout on Hobby
   const collected = [];
