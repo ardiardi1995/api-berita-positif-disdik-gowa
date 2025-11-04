@@ -142,7 +142,7 @@ function toStr(x) {
 }
 
 async function main() {
-  const query = arg('query', DEFAULT_QUERY);
+  const query = process.env.QUERY || arg('query', DEFAULT_QUERY);
   if (!process.env.DATABASE_URL) {
     console.error('Missing DATABASE_URL env. Set it in GitHub Actions secrets.');
     process.exit(1);

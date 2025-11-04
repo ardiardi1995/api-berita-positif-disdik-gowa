@@ -29,5 +29,7 @@ jobs:
       - name: Run scraper
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          QUERY: ${{ github.event.inputs.query || '"Dinas Pendidikan Kabupaten Gowa" OR "Disdik Gowa"' }}
+          LIMIT: ${{ github.event.inputs.limit || '20' }}
         run: |
-          node tools/scrape_google_html.js --query "${{ github.event.inputs.query || '"Dinas Pendidikan Kabupaten Gowa" OR "Disdik Gowa"' }}" --limit "${{ github.event.inputs.limit || '20' }}"
+          node tools/scrape_google_html.js --limit "$LIMIT"
