@@ -46,6 +46,49 @@ function getHostname(u) {
   }
 }
 
+async function resolveOriginalUrl(url, timeout = 1500) {
+  try {
+    // Try to resolve redirect without downloading the body
+    const res = await fetchWithTimeout(url, { redirect: 'manual', timeout, headers: { 'User-Agent': 'Mozilla/5.0 RovoDevBot' } });
+    const loc = res.headers && res.headers.get ? res.headers.get('location') : null;
+    if (loc && /^https?:\/\//i.test(loc)) return loc;
+    // Fallback: follow redirects and read final response URL
+    const res2 = await fetchWithTimeout(url, { redirect: 'follow', timeout, headers: { 'User-Agent': 'Mozilla/5.0 RovoDevBot' } });
+    if (res2 && res2.url) return res2.url;
+  } catch (_) {}
+  return url;
+}
+
+function extractOgImageFromHtml(html) {
+  try {
+    const m = html.match(/<meta[^>]+property=["']og:image["'][^>]+>/i) || html.match(/<meta[^>]+name=["']og:image["'][^>]+>/i);
+    if (m) {
+      const tag = m[0];
+      const urlMatch = tag.match(/content=["']([^"'>]+)["']/i);
+      if (urlMatch && /^https?:\/\//i.test(urlMatch[1])) return urlMatch[1];
+    }
+    const ld = html.match(/<meta[^>]+property=["']twitter:image["'][^>]+>/i);
+    if (ld) {
+      const urlMatch = ld[0].match(/content=["']([^"'>]+)["']/i);
+      if (urlMatch && /^https?:\/\//i.test(urlMatch[1])) return urlMatch[1];
+    }
+    // crude fallback: first img src
+    const img = html.match(/<img[^>]+src=["']([^"'>]+)["']/i);
+    if (img && /^https?:\/\//i.test(img[1])) return img[1];
+  } catch (_) {}
+  return null;
+}
+
+async function fetchOgImage(url, timeout = 1500) {
+  try {
+    const res = await fetchWithTimeout(url, { timeout, headers: { 'User-Agent': 'Mozilla/5.0 RovoDevBot' } });
+    const html = await res.text();
+    return extractOgImageFromHtml(html);
+  } catch (_) {
+    return null;
+  }
+}
+
 function first(val) {
   if (val == null) return null;
   return Array.isArray(val) ? (val[0] || null) : val;
@@ -133,7 +176,20 @@ export async function scrapeGowaPositiveNews() {
   }
 
   // De-dup and sort by newest first, then take latest TARGET_ITEMS
-  const items = Array.from(new Map(collected.map(it => [it.url, it])).values())
+  // Resolve original source URLs for google news links and enrich 3 items without image_url
+  const unique = Array.from(new Map(collected.map(it => [it.url, it])).values());
+  for (let i = 0, enriched = 0; i < unique.length && enriched < 3; i++) {
+    const it = unique[i];
+    if (it.url && /news\.google\.com\/rss\/articles\//.test(it.url)) {
+      it.url = await resolveOriginalUrl(it.url, 1500);
+    }
+    if (!it.image_url) {
+      const img = await fetchOgImage(it.url, 1200);
+      if (img) { it.image_url = img; enriched++; }
+    }
+  }
+
+  const items = unique
     .sort((a, b) => {
       const ta = a.published_at ? new Date(a.published_at).getTime() : 0;
       const tb = b.published_at ? new Date(b.published_at).getTime() : 0;
@@ -144,7 +200,7 @@ export async function scrapeGowaPositiveNews() {
       url: candidate.url,
       title: candidate.title,
       summary: candidate.description,
-      source: candidate.source,
+      source: candidate.source || (candidate.url ? getHostname(candidate.url) : undefined),
       published_at: candidate.published_at,
       image_url: candidate.image_url || null
     }));
