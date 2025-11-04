@@ -1,5 +1,5 @@
 import { XMLParser } from 'fast-xml-parser';
-import cheerio from 'cheerio';
+import { load as cheerioLoad } from 'cheerio';
 
 const positiveKeywords = [
   'sukses', 'penghargaan', 'prestasi', 'apresiasi', 'inovasi', 'juara', 'terbaik',
@@ -55,7 +55,7 @@ async function tryExtractArticle(url, timeoutMs = 1500) {
   try {
     const res = await fetchWithTimeout(url, { headers: { 'User-Agent': 'Mozilla/5.0 RovoDevBot' }, timeout: timeoutMs });
     const html = await res.text();
-    const $ = cheerio.load(html);
+    const $ = cheerioLoad(html);
     const ogTitle = $('meta[property="og:title"]').attr('content');
     const ogDesc = $('meta[property="og:description"]').attr('content');
     const ogImage = $('meta[property="og:image"]').attr('content');
