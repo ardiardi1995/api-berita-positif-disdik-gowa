@@ -9,7 +9,8 @@ export default async function handler(req, res) {
     }
     await ensureSchema();
     const q = req.query?.q || undefined;
-    const items = await scrapeGowaPositiveNews(q ? { q } : {});
+    const mode = req.query?.mode || undefined;
+    const items = await scrapeGowaPositiveNews({ ...(q ? { q } : {}), ...(mode ? { mode } : {}) });
     if (req.query && (req.query.dryrun === '1' || req.query.preview === '1')) {
       res.status(200).json({ ok: true, scraped: items.length, preview: items.slice(0, 10) });
       return;
