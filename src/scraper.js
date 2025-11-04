@@ -73,7 +73,7 @@ export async function scrapeGowaPositiveNews() {
     `https://news.google.com/rss/search?q=${q}&hl=id&gl=ID&ceid=ID:id`,
     `https://news.google.com/rss/search?q=${encodeURIComponent('Pendidikan Gowa')}&hl=id&gl=ID&ceid=ID:id`
   ];
-  const MAX_ITEMS = 10; // limit to keep within serverless time budget
+  const MAX_ITEMS = 5; // tighter limit to fit serverless timeout on Hobby
   const collected = [];
   for (const url of sources) {
     try {
