@@ -4,8 +4,8 @@
       "runtime": "nodejs20.x"
     }
   },
-  "routes": [
-    { "src": "/", "dest": "/api/news" }
+  "rewrites": [
+    { "source": "/", "destination": "/api/news" }
   ],
   "crons": [
     { "path": "/api/scrape", "schedule": "0 2 * * *" }
