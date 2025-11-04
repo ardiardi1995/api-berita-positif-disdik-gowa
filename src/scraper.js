@@ -99,18 +99,15 @@ export async function scrapeGowaPositiveNews() {
     }
   }
 
-  const items = [];
-  for (const candidate of collected) {
-    const extra = await tryExtractArticle(candidate.url, 1500);
-    items.push({
-      url: candidate.url,
-      title: extra.title || candidate.title,
-      summary: extra.summary || candidate.description,
-      source: candidate.source,
-      published_at: candidate.published_at,
-      image_url: extra.image || null
-    });
-  }
+  // Build items directly from RSS to keep within serverless time budget
+  const items = collected.map(candidate => ({
+    url: candidate.url,
+    title: candidate.title,
+    summary: candidate.description,
+    source: candidate.source,
+    published_at: candidate.published_at,
+    image_url: null
+  }));
 
   // de-duplicate by url
   const map = new Map();
