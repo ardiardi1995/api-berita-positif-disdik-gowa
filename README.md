@@ -9,13 +9,12 @@ API serverless untuk mengumpulkan (scrape) dan menyajikan berita online bernuans
 - Otomatis membuat tabel `news` jika belum ada
 
 ## Teknologi
-- Node.js runtime Vercel (nodejs20.x)
+- Node.js runtime Vercel (serverless functions)
 - PostgreSQL (`pg`)
-- Scraping dari Google News RSS (`fast-xml-parser`) dan ekstraksi meta halaman (`cheerio`)
+- Scraping dari Google News RSS (`fast-xml-parser`)
 
 ## Struktur
 ```
-api berita positif disdik/
 ├─ api/
 │  ├─ news.js
 │  ├─ scrape.js
@@ -30,15 +29,29 @@ api berita positif disdik/
 ```
 
 ## Deploy ke Vercel
-1. Buat database PostgreSQL (contoh: Vercel Postgres/Neon/Supabase).
-2. Dapatkan `DATABASE_URL` dari penyedia.
-3. Di project Vercel Anda, buka Settings -> Environment Variables dan tambahkan:
-   - `DATABASE_URL` = connection string database Anda.
-   - Opsional: `PGSSLMODE=disable` hanya jika koneksi lokal tanpa SSL.
-4. Push repo ini ke GitHub/GitLab dan import ke Vercel, atau gunakan `vercel` CLI.
-5. Deploy. Endpoint yang tersedia misalnya:
-   - `GET https://<your-deployment>/api/news`
-   - `POST https://<your-deployment>/api/scrape`
+1) Import project dari GitHub ke Vercel
+- Root Directory: biarkan default (root repo)
+- Framework Preset: Other
+- Build Command: kosongkan
+- Output Directory: kosongkan
+
+2) Environment Variables
+- DATABASE_URL = connection string PostgreSQL Anda (mis. Neon/Vercel Postgres/Supabase)
+- Jangan set PGSSLMODE kecuali koneksi non-SSL lokal (Neon default sslmode=require sudah kompatibel)
+
+3) Security (Deployment Protection)
+- Jika API harus publik: Project → Settings → Security → Authentication/Deployment Protection → Disabled
+
+4) Verifikasi endpoint
+- GET /api/health → 200
+- GET /api/news → 200 (awal mungkin kosong)
+- POST /api/scrape → isi data dari RSS ke DB
+
+Troubleshooting umum
+- 404 di semua endpoint: cek Root Directory sudah root, bukan subfolder
+- Error Cron limit: hapus blok `crons` di vercel.json (repo ini sudah tanpa cron). Gunakan GitHub Actions (lihat bawah)
+- Error Cheerio export: repo ini tidak lagi memakai cheerio untuk menghindari masalah ESM di serverless
+
 
 ## Penggunaan
 - Memicu scraping dan simpan ke DB:
@@ -46,6 +59,13 @@ api berita positif disdik/
   - atau `GET /api/scrape` (idempotent)
 - Mengambil berita:
   - `GET /api/news?q=prestasi&limit=20&offset=0`
+
+## Penjadwalan tanpa Cron Vercel (GitHub Actions)
+- Repo ini menyertakan workflow `.github/workflows/daily_scrape.yml`
+- Tambahkan Repository secret `SCRAPE_URL` berisi URL penuh endpoint scrape, contoh:
+  - `https://<deployment-domain>/api/scrape`
+- Workflow akan memanggil endpoint setiap hari pukul 02:00 UTC dan bisa dijalankan manual (workflow_dispatch)
+
 
 ## Catatan Filter "Positif"
 - Filter berbasis kata kunci positif/negatif sederhana di `src/scraper.js`.

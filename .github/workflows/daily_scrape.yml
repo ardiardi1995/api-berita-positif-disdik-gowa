@@ -1,0 +1,26 @@
+name: Daily scrape
+
+on:
+  schedule:
+    - cron: "0 2 * * *"  # 02:00 UTC daily
+  workflow_dispatch:
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call scrape endpoint
+        env:
+          SCRAPE_URL: ${{ secrets.SCRAPE_URL }}
+        run: |
+          if [ -z "$SCRAPE_URL" ]; then
+            echo "SCRAPE_URL secret is not set. Please add repository secret SCRAPE_URL with your deployment URL (e.g., https://<domain>/api/scrape)." >&2
+            exit 1
+          fi
+          echo "Calling $SCRAPE_URL"
+          http_code=$(curl -s -o /tmp/resp -w "%{http_code}" -X POST "$SCRAPE_URL")
+          echo "HTTP $http_code"
+          cat /tmp/resp || true
+          if [ "$http_code" -ge 400 ]; then
+            exit 1
+          fi
