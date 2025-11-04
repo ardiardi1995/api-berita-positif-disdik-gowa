@@ -86,7 +86,8 @@ export async function scrapeGowaPositiveNews() {
         const title = it.title?.["#text"] || it.title || '';
         const description = it.description || it.summary || '';
         const source = (it.source && (it.source.title || it.source)) || it['dc:creator'] || undefined;
-        const candidate = { url: link, title, description, published_at: pub ? new Date(pub) : null, source };
+        const published_at = (pub && !isNaN(Date.parse(pub))) ? new Date(pub) : null;
+        const candidate = { url: link, title, description, published_at, source };
         if (!candidate.url) continue;
         if (!isPositiveForGowa(candidate)) continue;
         collected.push(candidate);
