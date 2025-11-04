@@ -30,6 +30,13 @@ function isPositiveForGowa(item) {
   return containsAny(text, positiveKeywords) || true; // default to include if related and not negative
 }
 
+function toStr(x) {
+  if (x == null) return '';
+  if (typeof x === 'string') return x;
+  if (typeof x === 'object') return x.title || x.name || x.text || x.url || JSON.stringify(x);
+  return String(x);
+}
+
 function parseRss(xml) {
   const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: '' });
   const j = parser.parse(xml);
@@ -73,7 +80,7 @@ export async function scrapeGowaPositiveNews() {
         const pub = it.pubDate || it.published || it.updated;
         const title = it.title?.["#text"] || it.title || '';
         const description = it.description || it.summary || '';
-        const source = (it.source && (it.source.title || it.source)) || it['dc:creator'] || undefined;
+        const source = toStr(it.source) || it['dc:creator'] || undefined;
         const published_at = (pub && !isNaN(Date.parse(pub))) ? new Date(pub) : null;
         const candidate = { url: link, title, description, published_at, source };
         if (!candidate.url) continue;
