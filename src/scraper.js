@@ -48,13 +48,23 @@ function getHostname(u) {
 
 async function resolveOriginalUrl(url, timeout = 1500) {
   try {
-    // Try to resolve redirect without downloading the body
+    // Try to resolve HTTP redirects (Location header)
     const res = await fetchWithTimeout(url, { redirect: 'manual', timeout, headers: { 'User-Agent': 'Mozilla/5.0 RovoDevBot' } });
     const loc = res.headers && res.headers.get ? res.headers.get('location') : null;
     if (loc && /^https?:\/\//i.test(loc)) return loc;
-    // Fallback: follow redirects and read final response URL
+
+    // Follow redirects to see final response URL (may still be google)
     const res2 = await fetchWithTimeout(url, { redirect: 'follow', timeout, headers: { 'User-Agent': 'Mozilla/5.0 RovoDevBot' } });
-    if (res2 && res2.url) return res2.url;
+    if (res2 && res2.url && !/news\.google\.com\/rss\/articles\//.test(res2.url)) return res2.url;
+
+    // Some Google News article pages use a meta refresh to the original URL
+    const html = await res2.text();
+    const m = html && html.match(/<meta[^>]+http-equiv=["']refresh["'][^>]+content=["'][^"']*url=([^"'>]+)["']/i);
+    if (m && /^https?:\/\//i.test(m[1])) return m[1];
+
+    // Try canonical link
+    const canon = html && html.match(/<link[^>]+rel=["']canonical["'][^>]+href=["']([^"'>]+)["']/i);
+    if (canon && /^https?:\/\//i.test(canon[1])) return canon[1];
   } catch (_) {}
   return url;
 }
