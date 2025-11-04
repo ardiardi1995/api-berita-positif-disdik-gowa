@@ -178,15 +178,21 @@ export async function scrapeGowaPositiveNews(opts = {}) {
     }
   }
 
-  // De-dup and sort by newest first, then take latest TARGET_ITEMS
-  // Resolve original source URLs for google news links and enrich 3 items without image_url
+  // De-dup
   const unique = Array.from(new Map(collected.map(it => [it.url, it])).values());
-  for (let i = 0, enriched = 0; i < unique.length && enriched < 10; i++) {
+
+  // 1) Resolve original source URLs for ALL Google News links first
+  for (let i = 0; i < unique.length; i++) {
     const it = unique[i];
     if (it.url && /news\.google\.com\/rss\/articles\//.test(it.url)) {
       it.url = await resolveOriginalUrl(it.url, 1500);
     }
-    if (!it.image_url) {
+  }
+
+  // 2) Enrich up to 10 items missing image_url using og:image from source page
+  for (let i = 0, enriched = 0; i < unique.length && enriched < 10; i++) {
+    const it = unique[i];
+    if (!it.image_url && it.url) {
       const img = await fetchOgImage(it.url, 1200);
       if (img) { it.image_url = img; enriched++; }
     }
