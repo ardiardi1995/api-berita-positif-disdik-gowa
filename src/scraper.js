@@ -51,9 +51,9 @@ function fetchWithTimeout(resource, options = {}) {
     .finally(() => clearTimeout(id));
 }
 
-async function tryExtractArticle(url) {
+async function tryExtractArticle(url, timeoutMs = 1500) {
   try {
-    const res = await fetchWithTimeout(url, { headers: { 'User-Agent': 'Mozilla/5.0 RovoDevBot' }, timeout: 5000 });
+    const res = await fetchWithTimeout(url, { headers: { 'User-Agent': 'Mozilla/5.0 RovoDevBot' }, timeout: timeoutMs });
     const html = await res.text();
     const $ = cheerio.load(html);
     const ogTitle = $('meta[property="og:title"]').attr('content');
@@ -101,7 +101,7 @@ export async function scrapeGowaPositiveNews() {
 
   const items = [];
   for (const candidate of collected) {
-    const extra = await tryExtractArticle(candidate.url);
+    const extra = await tryExtractArticle(candidate.url, 1500);
     items.push({
       url: candidate.url,
       title: extra.title || candidate.title,
