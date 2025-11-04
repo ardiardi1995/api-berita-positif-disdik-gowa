@@ -37,6 +37,43 @@ function toStr(x) {
   return String(x);
 }
 
+function getHostname(u) {
+  try {
+    const h = new URL(u).hostname || '';
+    return h.replace(/^www\./, '');
+  } catch (_) {
+    return '';
+  }
+}
+
+function first(val) {
+  if (val == null) return null;
+  return Array.isArray(val) ? (val[0] || null) : val;
+}
+
+function extractImageUrlFromItem(it) {
+  // media:content or media:thumbnail or enclosure variants
+  const medias = [];
+  if (it['media:content']) medias.push(...(Array.isArray(it['media:content']) ? it['media:content'] : [it['media:content']]));
+  if (it['media:thumbnail']) medias.push(...(Array.isArray(it['media:thumbnail']) ? it['media:thumbnail'] : [it['media:thumbnail']]));
+  if (it.enclosure) medias.push(...(Array.isArray(it.enclosure) ? it.enclosure : [it.enclosure]));
+  if (it['media:group'] && it['media:group']['media:content']) {
+    const mg = it['media:group']['media:content'];
+    medias.push(...(Array.isArray(mg) ? mg : [mg]));
+  }
+  for (const m of medias) {
+    const url = m && (m.url || m.href || m.link);
+    if (typeof url === 'string' && /^https?:\/\//i.test(url)) {
+      return url;
+    }
+  }
+  // try to find image URL inside description HTML
+  const desc = toStr(it.description || it.summary || '');
+  const imgMatch = desc.match(/https?:[^\"'\s>]+\.(?:png|jpe?g|webp)/i);
+  if (imgMatch) return imgMatch[0];
+  return null;
+}
+
 function parseRss(xml) {
   const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: '' });
   const j = parser.parse(xml);
@@ -80,9 +117,10 @@ export async function scrapeGowaPositiveNews() {
         const pub = it.pubDate || it.published || it.updated;
         const title = it.title?.["#text"] || it.title || '';
         const description = it.description || it.summary || '';
-        const source = toStr(it.source) || it['dc:creator'] || undefined;
+        const image_url = extractImageUrlFromItem(it);
+        const source = toStr(it.source) || it['dc:creator'] || (link ? getHostname(link) : undefined);
         const published_at = (pub && !isNaN(Date.parse(pub))) ? new Date(pub) : null;
-        const candidate = { url: link, title, description, published_at, source };
+        const candidate = { url: link, title, description, published_at, source, image_url };
         if (!candidate.url) continue;
         if (!isPositiveForGowa(candidate)) continue;
         collected.push(candidate);
@@ -108,7 +146,7 @@ export async function scrapeGowaPositiveNews() {
       summary: candidate.description,
       source: candidate.source,
       published_at: candidate.published_at,
-      image_url: null
+      image_url: candidate.image_url || null
     }));
 
   return items;
