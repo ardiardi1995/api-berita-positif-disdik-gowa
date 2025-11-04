@@ -147,6 +147,42 @@ function fetchWithTimeout(resource, options = {}) {
     .finally(() => clearTimeout(id));
 }
 
+async function fetchGoogleNewsHtml(query, timeout = 4000) {
+  const url = `https://www.google.com/search?tbm=nws&q=${encodeURIComponent(query)}`;
+  const res = await fetchWithTimeout(url, {
+    timeout,
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36',
+      'Accept-Language': 'id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7'
+    }
+  });
+  return await res.text();
+}
+
+function extractPublisherLinksFromHtml(html) {
+  // Extract /url?url=<encoded> links which usually point to publisher pages
+  const out = [];
+  const re = /\bhref=\"\/url\?q=([^\"&]+)[^\"]*\"/gi; // modern format ?q=
+  let m;
+  while ((m = re.exec(html)) && out.length < 50) {
+    try {
+      const u = decodeURIComponent(m[1]);
+      if (/^https?:\/\//i.test(u) && !/news\.google\.com\//.test(u)) out.push(u);
+    } catch (_) {}
+  }
+  if (out.length === 0) {
+    // older format url=
+    const re2 = /\/url\?url=([^&\"']+)/gi;
+    while ((m = re2.exec(html)) && out.length < 50) {
+      try {
+        const u = decodeURIComponent(m[1]);
+        if (/^https?:\/\//i.test(u) && !/news\.google\.com\//.test(u)) out.push(u);
+      } catch (_) {}
+    }
+  }
+  return Array.from(new Set(out));
+}
+
 /* removed: tryExtractArticle (cheerio-based) */
 function tryExtractArticle() { return {}; }
 
@@ -190,6 +226,21 @@ export async function scrapeGowaPositiveNews(opts = {}) {
 
   // De-dup
   const unique = Array.from(new Map(collected.map(it => [it.url, it])).values());
+
+  // 0) If many are still Google URLs, fallback: fetch Google News HTML to derive publisher URLs
+  const needHtmlFallback = unique.some(it => it.url && /news\.google\.com\/rss\/articles\//.test(it.url));
+  if (needHtmlFallback) {
+    const html = await fetchGoogleNewsHtml(qRaw || 'Dinas Pendidikan Kabupaten Gowa', 4000);
+    const pubs = extractPublisherLinksFromHtml(html);
+    // naive mapping by title matching (best-effort)
+    for (const it of unique) {
+      if (it.url && /news\.google\.com\/rss\/articles\//.test(it.url)) {
+        const t = (it.title || '').toLowerCase();
+        const cand = pubs.find(u => u && t && u.toLowerCase().includes(getHostname(u).split('.')[0]));
+        if (cand) it.url = cand;
+      }
+    }
+  }
 
   // 1) Resolve original source URLs for ALL Google News links first
   for (let i = 0; i < unique.length; i++) {
