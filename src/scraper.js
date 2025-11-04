@@ -215,6 +215,66 @@ function extractPublisherLinksFromHtml(html) {
 /* removed: tryExtractArticle (cheerio-based) */
 function tryExtractArticle() { return {}; }
 
+const DEFAULT_RSS_SOURCES = (
+  process.env.SOURCES_RSS || [
+    'https://gosulsel.com/feed/',
+    'https://www.pijarnews.com/feed/',
+    'https://www.ujungjari.com/feed/',
+    'https://koranmakassar.com/feed/',
+    'https://beritakotamakassar.com/feed/'
+  ].join(',')
+).split(',').map(s => s.trim()).filter(Boolean);
+
+async function fetchRss(url) {
+  try {
+    const res = await fetchWithTimeout(url, { timeout: 6000, headers: { 'User-Agent': 'Mozilla/5.0 RovoDevBot' } });
+    const xml = await res.text();
+    return parseRss(xml);
+  } catch { return []; }
+}
+
+async function scrapeFromCuratedSources(targetItems = 10) {
+  const KEYWORDS = [
+    'dinas pendidikan kabupaten gowa',
+    'disdik gowa',
+    'pendidikan gowa'
+  ];
+  const items = [];
+  for (const feed of DEFAULT_RSS_SOURCES) {
+    const parsed = await fetchRss(feed);
+    for (const it of parsed) {
+      const link = it.link?.href || it.link || null;
+      const title = (it.title?.["#text"] || it.title || '').toString();
+      const description = (it.description || it.summary || '').toString();
+      const text = (title + ' ' + description).toLowerCase();
+      if (!KEYWORDS.some(k => text.includes(k))) continue;
+      const pub = it.pubDate || it.published || it.updated;
+      const published_at = (pub && !isNaN(Date.parse(pub))) ? new Date(pub) : null;
+      const image_url = extractImageUrlFromItem(it) || null;
+      items.push({ url: link, title, description, published_at, source: link ? getHostname(link) : undefined, image_url });
+    }
+  }
+  // Enrich via publisher pages for up to 10 items missing image_url or published_at
+  const needEnrich = items.filter(it => !it.image_url || !it.published_at).slice(0, 10);
+  for (const it of needEnrich) {
+    if (!it.url) continue;
+    const info = await fetchOgImage(it.url, 2000);
+    const res = await fetchWithTimeout(it.url, { timeout: 2000, headers: { 'User-Agent': 'Mozilla/5.0 RovoDevBot' } }).catch(() => null);
+    const html = res ? await res.text() : '';
+    const img = extractOgImageFromHtml(html) || null;
+    if (img) it.image_url = img;
+    if (!it.published_at) {
+      const t = html.match(/<time[^>]+datetime=["']([^"'>]+)["']/i);
+      if (t && !isNaN(Date.parse(t[1]))) it.published_at = new Date(t[1]);
+    }
+  }
+  // Dedup, sort, slice
+  const dedup = Array.from(new Map(items.filter(x => x.url).map(x => [x.url, x])).values())
+    .sort((a, b) => (b.published_at ? new Date(b.published_at).getTime() : 0) - (a.published_at ? new Date(a.published_at).getTime() : 0))
+    .slice(0, Math.max(targetItems, 10));
+  return dedup;
+}
+
 export async function scrapeGowaPositiveNews(opts = {}) {
   const qRaw = typeof opts === 'string' ? opts : opts.q;
   const q = qRaw ? encodeURIComponent(qRaw) : encodeURIComponent('\"Dinas Pendidikan Kabupaten Gowa\" OR \"Disdik Gowa\"');
@@ -228,6 +288,23 @@ export async function scrapeGowaPositiveNews(opts = {}) {
   const TARGET_ITEMS = 10; // aim to return at least 10 latest items
   const MAX_ITEMS = 30; // collect up to 30 before slicing to latest 10
   const collected = [];
+
+  // If curated sources produce enough, use them directly (publisher URLs + images)
+  if (!qRaw) {
+    try {
+      const curated = await scrapeFromCuratedSources(TARGET_ITEMS);
+      if (curated && curated.length >= TARGET_ITEMS) {
+        return curated.map(x => ({
+          url: x.url,
+          title: x.title,
+          summary: x.description,
+          source: x.source,
+          published_at: x.published_at,
+          image_url: x.image_url || null
+        }));
+      }
+    } catch (_) {}
+  }
   for (const url of sources) {
     try {
       const res = await fetchWithTimeout(url, { headers: { 'User-Agent': 'Mozilla/5.0 RovoDevBot' }, timeout: 5000 });
