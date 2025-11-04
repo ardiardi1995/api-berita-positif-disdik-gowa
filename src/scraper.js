@@ -159,28 +159,57 @@ async function fetchGoogleNewsHtml(query, timeout = 4000) {
   return await res.text();
 }
 
+function normalizeTitle(s) {
+  return (s || '')
+    .toLowerCase()
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&[^;]+;/g, ' ')
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function jaccardSimilarity(a, b) {
+  const as = new Set(normalizeTitle(a).split(' ').filter(x => x.length > 2));
+  const bs = new Set(normalizeTitle(b).split(' ').filter(x => x.length > 2));
+  if (as.size === 0 || bs.size === 0) return 0;
+  let inter = 0;
+  for (const w of as) if (bs.has(w)) inter++;
+  const union = as.size + bs.size - inter;
+  return union ? inter / union : 0;
+}
+
 function extractPublisherLinksFromHtml(html) {
-  // Extract /url?url=<encoded> links which usually point to publisher pages
-  const out = [];
-  const re = /\bhref=\"\/url\?q=([^\"&]+)[^\"]*\"/gi; // modern format ?q=
+  // Extract result cards: title + publisher url
+  const items = [];
+  // Title anchor elements with /url? or google redirect
+  const reA = /<a[^>]+href=\"\/url\?q=([^\"&]+)[^\"]*\"[^>]*>([\s\S]*?)<\/a>/gi;
   let m;
-  while ((m = re.exec(html)) && out.length < 50) {
+  while ((m = reA.exec(html)) && items.length < 50) {
     try {
-      const u = decodeURIComponent(m[1]);
-      if (/^https?:\/\//i.test(u) && !/news\.google\.com\//.test(u)) out.push(u);
+      const url = decodeURIComponent(m[1]);
+      if (!/^https?:\/\//i.test(url) || /news\.google\.com\//.test(url)) continue;
+      const titleHtml = m[2] || '';
+      const title = normalizeTitle(titleHtml);
+      if (!title) continue;
+      items.push({ title, url });
     } catch (_) {}
   }
-  if (out.length === 0) {
-    // older format url=
-    const re2 = /\/url\?url=([^&\"']+)/gi;
-    while ((m = re2.exec(html)) && out.length < 50) {
+  // Fallback: older format with url=
+  if (items.length === 0) {
+    const re2 = /<a[^>]+href=\"\/url\?url=([^\"&]+)[^\"]*\"[^>]*>([\s\S]*?)<\/a>/gi;
+    while ((m = re2.exec(html)) && items.length < 50) {
       try {
-        const u = decodeURIComponent(m[1]);
-        if (/^https?:\/\//i.test(u) && !/news\.google\.com\//.test(u)) out.push(u);
+        const url = decodeURIComponent(m[1]);
+        if (!/^https?:\/\//i.test(url) || /news\.google\.com\//.test(url)) continue;
+        const titleHtml = m[2] || '';
+        const title = normalizeTitle(titleHtml);
+        if (!title) continue;
+        items.push({ title, url });
       } catch (_) {}
     }
   }
-  return Array.from(new Set(out));
+  return items;
 }
 
 /* removed: tryExtractArticle (cheerio-based) */
@@ -231,13 +260,19 @@ export async function scrapeGowaPositiveNews(opts = {}) {
   const needHtmlFallback = unique.some(it => it.url && /news\.google\.com\/rss\/articles\//.test(it.url));
   if (needHtmlFallback) {
     const html = await fetchGoogleNewsHtml(qRaw || 'Dinas Pendidikan Kabupaten Gowa', 4000);
-    const pubs = extractPublisherLinksFromHtml(html);
-    // naive mapping by title matching (best-effort)
+    const pubs = extractPublisherLinksFromHtml(html); // [{title, url}]
     for (const it of unique) {
       if (it.url && /news\.google\.com\/rss\/articles\//.test(it.url)) {
-        const t = (it.title || '').toLowerCase();
-        const cand = pubs.find(u => u && t && u.toLowerCase().includes(getHostname(u).split('.')[0]));
-        if (cand) it.url = cand;
+        const t = it.title || '';
+        let best = null, bestScore = 0;
+        for (const p of pubs) {
+          const s = jaccardSimilarity(t, p.title);
+          if (s > bestScore) { best = p; bestScore = s; }
+        }
+        if (best && bestScore >= 0.2) {
+          it.url = best.url;
+          it.source = getHostname(best.url) || it.source;
+        }
       }
     }
   }
